@@ -1,41 +1,15 @@
 use crate::tensor::{Tensor, TensorMut};
+use crate::SmeltError;
 
 use cblas_sys::{
     cblas_sgemm as sgemm, CblasColMajor as ColMajor, CblasNoTrans as NoTr,
     CblasRowMajor as RowMajor, CblasTrans as Tr,
 };
 
-/// Potential errors when using the library
-#[derive(Debug)]
-pub enum SmeltError {
-    /// The operation could not succeed because the shapes are not valid.
-    DimensionMismatch {
-        /// The shape that we should have seen
-        expected: Vec<usize>,
-        /// The shape that we received
-        got: Vec<usize>,
-    },
-    /// The tensor given has insufficient rank (rank 2 means a tensor that has a shape of length 2)
-    InsufficientRank {
-        /// The minimum rank that we expect
-        minimum_rank: usize,
-    },
-    /// The tensor given has not the expected rank (rank 2 means a tensor that has a shape of length 2)
-    InvalidRank {
-        /// The rank that we expect
-        expected_rank: usize,
-    },
-    /// The tensor given has not enough room for the operations
-    VectorTooSmall {
-        /// The minimum size that we expect
-        minimum: usize,
-    },
-}
-
 /// Operation for selecting entire rows within tensor `weights`. Each `id` is the index
 /// of the row.
 pub fn select<T: Tensor, TM: TensorMut>(
-    ids: &[u32],
+    ids: &[usize],
     weights: &T,
     out: &mut TM,
 ) -> Result<(), SmeltError> {
@@ -381,13 +355,14 @@ pub fn special_argmax<T: Tensor>(x: &T) -> Result<usize, SmeltError> {
 
 /// `gelu` operation
 /// [https://en.wikipedia.org/wiki/Activation_function#Comparison_of_activation_functions]
-pub fn gelu<T: TensorMut>(x: &mut T) {
-    x.data_mut().iter_mut().for_each(|v| {
-        *v = 0.5
-            * (*v)
-            * (1.0
-                + f32::tanh((2.0f32 / std::f32::consts::PI).sqrt() * (*v + 0.044715 * v.powf(3.0))))
-    });
+pub fn gelu(x: f32) -> f32 {
+    0.5 * (x)
+        * (1.0 + f32::tanh((2.0f32 / std::f32::consts::PI).sqrt() * (x + 0.044715 * x.powf(3.0))))
+}
+
+/// Applies a unary function to an entire tensor
+pub fn apply<T: TensorMut, F: Fn(f32) -> f32>(x: &mut T, func: F) {
+    x.data_mut().iter_mut().for_each(|v| *v = func(*v))
 }
 
 #[cfg(test)]
